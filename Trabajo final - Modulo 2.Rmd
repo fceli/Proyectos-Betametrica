@@ -1,0 +1,112 @@
+---
+
+title: "Trabajo final - Modulo 2"
+author: "Fabian Celi"
+date: "2023-12-26"
+output: html_document
+---
+
+```{r libraries, echo=FALSE, message=FALSE, warning=FALSE, comment=""}
+library(openxlsx)
+library(ggplot2)
+library(reshape2)
+library(lubridate)
+library(dplyr)
+library(gganimate)
+library(animation)
+
+```
+```{r bases, echo=FALSE, message=FALSE, warning=FALSE, comment=""}
+
+ExpEimp <- read.xlsx("C:\\Users\\fabia\\Desktop\\Cursos 2023\\1. Ciencia de datos\\1. Ciencia de datos\\2. Analisis exploratorio y reportes\\Bases trabajo final\\Expor e import.xlsx",
+                     detectDates = T)
+
+ExpEimp2 <- melt(ExpEimp, id = c("Concepto"),value.name = "Value",na.rm = T)  
+ExpEimp2$variable <- as.numeric(as.character(ExpEimp2$variable))  
+ExpEimp2$variable <- as.Date(ExpEimp2$variable,origin = "1899-12-30")
+colnames(ExpEimp2)[2] <- "Anio"
+ExpEimp2 <- ExpEimp2 %>% mutate(Anio = as.character(year(Anio)))
+ExpEimp2 <- ExpEimp2 %>% group_by(Anio, Concepto) %>% 
+  summarise(Value = sum(Value))
+ExpEimp2 <- as.data.frame(ExpEimp2)
+
+desempleo <- read.xlsx("C:\\Users\\fabia\\Desktop\\Cursos 2023\\1. Ciencia de datos\\1. Ciencia de datos\\2. Analisis exploratorio y reportes\\Bases trabajo final\\Desempleo.xlsx", sheet = "Hoja1")
+
+desempleo2 <- melt(desempleo, id = c("Country.Name","Indicator.Name"),value.name = "Value",na.rm = T) %>% filter(Country.Name %in% c("Ecuador"))
+colnames(desempleo2)[3] <- "Anio"
+desempleo2 <- desempleo2 %>% mutate(Anio = as.numeric(as.character(Anio)))
+desempleo2 <- desempleo2 %>% filter(Anio > 2010) %>% select(-c(Anio))
+desempleo2$periodo <-  seq.Date(as.Date("2022-01-01"), as.Date("2022-12-01"), by = "1 month")
+
+
+Homicidios <- read.xlsx("C:\\Users\\fabia\\Desktop\\Cursos 2023\\1. Ciencia de datos\\1. Ciencia de datos\\2. Analisis exploratorio y reportes\\Bases trabajo final\\Homicidios.xlsx")
+
+Homicidios2 <- melt(Homicidios, id = c("Country.Name","Indicator.Name"),value.name = "Value",na.rm = T) %>% filter(Country.Name %in% c("Ecuador"))
+colnames(Homicidios2)[3] <- "Anio"
+Homicidios2 <- Homicidios2 %>% mutate(Anio = as.numeric(as.character(Anio)))
+Homicidios2 <- Homicidios2 %>% filter(Anio >= 2010) %>% select(-c(Anio))
+Homicidios2$periodo <-  seq.Date(as.Date("2022-01-01"), as.Date("2022-12-01"), by = "1 month")
+
+
+
+crecimiento_porc_PIB <- read.xlsx("C:\\Users\\fabia\\Desktop\\Cursos 2023\\1. Ciencia de datos\\1. Ciencia de datos\\2. Analisis exploratorio y reportes\\Bases trabajo final\\Homicidios.xlsx")
+
+crecimiento_porc_PIB2 <- melt(crecimiento_porc_PIB, id = c("Country.Name","Indicator.Name"),value.name = "Value",na.rm = T) %>% filter(Country.Name %in% c("El mundo árabe","Europa Central y del Báltico","Asia oriental y el Pacífico","Asia oriental y el Pacífico (excluido altos ingresos)", "Europa y Asia central (excluido altos ingresos)","Unión Europea","América Latina y el Caribe"))
+colnames(crecimiento_porc_PIB2)[3] <- "Anio"
+
+
+desempl_homic <- rbind(desempleo2,Homicidios2) %>% select(-c(Country.Name))
+desempl_homic <- melt(desempl_homic,id.vars = c("periodo","Indicator.Name"), value.name = "Value")
+
+
+```
+## 1. Realiza un boxplot usando ggplot2, de UNA de las variables que hayas descargado. 
+
+Realiza un boxplot usando ggplot2, de UNA de las variables que hayas descargado.
+
+```{r boxplot}
+ggplot(crecimiento_porc_PIB2,aes(x=Anio,y=Value,fill=Country.Name))+
+  geom_boxplot(aes(fill=Country.Name))+facet_wrap(~Country.Name,scales = "free")+
+                 geom_jitter(width=0.1,alpha=0.2,aes(color=Country.Name))+
+  labs(title="Crecimiento del PIB en diferentes regiones del mundo",
+       subtitle = "En porcentaje",
+       caption = "Fuente: Banco Mundial\n Elaboracion: Fabian Celi")+
+  theme(legend.position = "none", axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+```
+
+
+## 2. Realiza un gráfico de barras NO apiladas para 2 variables que tengan sentido analizar, por ejemplo: exportaciones e importaciones; crédito y depósitos, etc. 
+
+```{r BarrasNoApiladas}
+ggplot(ExpEimp2, aes(x = Anio, y = Value, fill = Concepto, colour = Concepto)) + 
+  geom_bar(stat = "identity", position = "dodge", alpha = 0.5) +
+  geom_text(aes(label=Value), vjust=0, color="black", size=3,
+            position = position_dodge(width = 1)) + 
+  labs(title="Evolucion de las exportaciones e importaciones del Ecuador",
+       subtitle = "En miles de millones",
+       caption = "Fuente: BCE\n Elaboracion: Fabian Celi") +
+  theme_bw() + 
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) 
+
+```
+
+
+## 3. Escoge 2 variables y realiza un gráfico de líneas en dos cuadros (usando facet). 
+Este gráfico debe incorporar la linea de tendencia para las dos variables. Prueba generando un gráfico usando dygraphs o plotly
+
+
+```{r Graficolineas,echo=TRUE,message=FALSE,warning=FALSE,comment=""}
+
+animado2 <- ggplot(data=desempl_homic,aes(x=periodo,y=Value,group=1))+
+  geom_line()+facet_wrap(.~Indicator.Name  ,scales = "free")
+animado2 <- animado2+transition_reveal(along = periodo)
+
+
+animado2 <- animado2+geom_point()+ transition_reveal(along = periodo)+
+  labs(title = "Mes indicador: {frame_along}")
+
+animado2
+
+```
